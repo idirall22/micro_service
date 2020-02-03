@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"log"
-	"net"
 	"sync"
 
 	pb "github.com/idirall22/micro_services/proto/consignment"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	"github.com/micro/go-micro"
 )
 
 type repository interface {
@@ -40,30 +38,27 @@ type service struct {
 	repo repository
 }
 
-func (s *service) CreateConsignment(ctx context.Context, con *pb.Consignment) (*pb.Reponse, error) {
-	c, err := s.repo.Create(con)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Reponse{Created: true, Consignment: c}, nil
+// CreateConsignment create
+func (s *service) CreateConsignment(ctx context.Context, c *pb.Consignment, res *pb.Reponse) error {
+	con, err := s.repo.Create(c)
+	res.Created = true
+	res.Consignment = con
+	return err
 }
 
-func (s *service) GetConsignment(ctx context.Context, req *pb.GetRequest) (*pb.Reponse, error) {
-	return &pb.Reponse{Consignments: s.repo.GetAll()}, nil
+// GetConsignment get
+func (s *service) GetConsignment(ctx context.Context, req *pb.GetRequest, res *pb.Reponse) error {
+	res.Consignments = s.repo.GetAll()
+	return nil
 }
 
 func main() {
-	l, err := net.Listen("tcp", ":5000")
+	srv := micro.NewService(
+		micro.Name("shippy.service.consignment"),
+	)
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	srv.Init()
 
-	srv := grpc.NewServer()
-
-	pb.RegisterShippingServiceServer(srv, &service{repo: &Repository{}})
-	reflection.Register(srv)
-
-	log.Println("Runing on port 5000")
-	log.Fatal(srv.Serve(l))
+	pb.RegisterShippingServiceHandler(srv.Server(), &service{repo: &Repository{}})
+	log.Fatal(srv.Run())
 }
